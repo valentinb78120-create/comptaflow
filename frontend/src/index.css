@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-white text-ink-800 font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11"; /* glyphes Inter raffinés */
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-display text-ink-900;
+  }
+
+  /* Sélection de texte aux couleurs de marque */
+  ::selection {
+    @apply bg-brand-600/15 text-brand-900;
+  }
+
+  /* Scrollbar discrète */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-ink-200 rounded-full border-2 border-solid border-white;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-ink-300;
+  }
+}
+
+@layer components {
+  /* Texte en dégradé de marque */
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(120deg, #4f46e5 0%, #6366f1 45%, #a855f7 100%);
+  }
+
+  /* Surface vitrée (glassmorphism) */
+  .glass {
+    @apply bg-white/70 backdrop-blur-xl border border-white/60;
+  }
+
+  /* Carte standard premium */
+  .card {
+    @apply bg-white rounded-3xl border border-ink-200/70 shadow-card;
+  }
+
+  /* Bouton primaire dégradé */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-brand-gradient
+           px-5 py-2.5 text-sm font-semibold text-white shadow-glow
+           transition-all duration-200 hover:shadow-glow-lg hover:-translate-y-0.5
+           active:translate-y-0 focus:outline-none focus-visible:ring-2
+           focus-visible:ring-brand-400 focus-visible:ring-offset-2 disabled:opacity-50
+           disabled:pointer-events-none;
+  }
+
+  /* Bouton secondaire (contour) */
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-ink-200
+           bg-white px-5 py-2.5 text-sm font-semibold text-ink-700 shadow-soft
+           transition-all duration-200 hover:border-ink-300 hover:bg-ink-50
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400
+           focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  /* Champ de saisie raffiné */
+  .input-field {
+    @apply w-full rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 text-sm
+           text-ink-900 shadow-soft transition-all duration-150 placeholder:text-ink-400
+           focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10;
+  }
+
+  /* Délais d'apparition échelonnés */
+  .delay-1 { animation-delay: 0.08s; }
+  .delay-2 { animation-delay: 0.16s; }
+  .delay-3 { animation-delay: 0.24s; }
+  .delay-4 { animation-delay: 0.32s; }
+  .delay-5 { animation-delay: 0.40s; }
+}
