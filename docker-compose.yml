@@ -1,3 +1,45 @@
+# ============================================================================
+# ComptaFlow — environnement de développement, 100% portable.
+#
+# Fonctionne sur n'importe quelle machine (Windows / macOS / Linux) avec
+# seulement Docker Desktop installé — aucune dépendance locale (pas de
+# Python, pas de Node.js, pas de PostgreSQL à installer).
+#
+# Démarrage :
+#   docker compose up --build
+#
+# Les tables de la base sont créées automatiquement au démarrage de l'API
+# (migrations Alembic). Aucune clé API n'est requise pour essayer
+# l'application : sans MISTRAL_API_KEY, l'OCR utilise automatiquement
+# Tesseract (moteur local, gratuit, un peu moins précis).
+#
+# Pour personnaliser (clé Mistral, Stripe...) : copiez .env.example en .env
+# à la racine du projet et renseignez vos valeurs — docker compose le lira
+# automatiquement. Ce fichier est optionnel : sans lui, tout fonctionne
+# avec des valeurs par défaut adaptées au développement.
+# ============================================================================
+
+# Bloc d'environnement partagé entre les services api et worker (DRY).
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://compta:compta@db:5432/comptaflow
+  DATABASE_URL_SYNC: postgresql://compta:compta@db:5432/comptaflow
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+  MISTRAL_OCR_MODEL: ${MISTRAL_OCR_MODEL:-mistral-ocr-latest}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PRICE_ID_DECOUVERTE: ${STRIPE_PRICE_ID_DECOUVERTE:-}
+  STRIPE_PRICE_ID_CABINET: ${STRIPE_PRICE_ID_CABINET:-}
+  STRIPE_PRICE_ID_CABINET_PLUS: ${STRIPE_PRICE_ID_CABINET_PLUS:-}
+  APP_SECRET_KEY: ${APP_SECRET_KEY:-dev-secret-not-for-production-use}
+  DEBUG: ${DEBUG:-true}
+  UPLOAD_DIR: /tmp/comptaflow/uploads
+  MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-20}
+  ENFORCE_SUBSCRIPTION: ${ENFORCE_SUBSCRIPTION:-false}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+
 services:
   # ── PostgreSQL ────────────────────────────────────────────────────────────
   db:
@@ -16,7 +58,7 @@ services:
       timeout: 5s
       retries: 10
 
-  # ── Redis ─────────────────────────────────────────────────────────────────
+  # ── Redis (file d'attente des jobs OCR) ──────────────────────────────────
   redis:
     image: redis:7-alpine
     ports:
@@ -32,13 +74,8 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    env_file: ./backend/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://compta:compta@db:5432/comptaflow
-      DATABASE_URL_SYNC: postgresql://compta:compta@db:5432/comptaflow
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      <<: *backend-env
     ports:
       - "8000:8000"
     volumes:
@@ -49,20 +86,17 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # "alembic upgrade head" crée/met à jour les tables à chaque démarrage —
+    # sans commande manuelle à lancer, y compris au tout premier démarrage.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
-  # ── Celery worker ─────────────────────────────────────────────────────────
+  # ── Celery worker (exécute l'OCR en arrière-plan) ────────────────────────
   worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    env_file: ./backend/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://compta:compta@db:5432/comptaflow
-      DATABASE_URL_SYNC: postgresql://compta:compta@db:5432/comptaflow
-      REDIS_URL: redis://redis:6379/0
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      <<: *backend-env
     volumes:
       - uploads_data:/tmp/comptaflow/uploads
       - ./backend:/app
@@ -73,7 +107,7 @@ services:
         condition: service_healthy
     command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2
 
-  # ── React frontend (dev) ──────────────────────────────────────────────────
+  # ── React frontend (dev, avec rechargement à chaud) ──────────────────────
   frontend:
     build:
       context: ./frontend
@@ -85,6 +119,8 @@ services:
       - /app/node_modules
     environment:
       VITE_API_URL: http://localhost:8000/api/v1
+    depends_on:
+      - api
 
 volumes:
   postgres_data:
